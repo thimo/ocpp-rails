@@ -142,10 +142,19 @@ module Ocpp
         end
 
         def mark_connected
+          # From the row, not from what the handshake happened to load: another
+          # process tearing down its stale socket for this same station between
+          # the two writes false, and an instance that still reads true would
+          # never write it back (Active Record skips unchanged attributes).
+          @charge_point.reload
           was = @charge_point.connected
           @charge_point.update(connected: true, last_heartbeat_at: Time.current)
           log_connection_change(was, true)
           @logger.info("[OCPP][raw] #{ident}: connected")
+        rescue ActiveRecord::RecordNotFound
+          # The station row was removed between the handshake and this write;
+          # the socket is torn down with it. Nothing to mark.
+          @logger.info("[OCPP][raw] #{ident}: station row is gone, not marked connected")
         end
 
         def mark_disconnected

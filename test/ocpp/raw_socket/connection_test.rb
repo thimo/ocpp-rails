@@ -208,6 +208,16 @@ module Ocpp
             Connection.new(charge_point: reconnecting, driver: FakeDriver.new, io: nil, pubsub: @pubsub).open
           end
         end
+
+        test "open marks connected from the row, not from a stale instance" do
+          stale = ChargePoint.find(@charge_point.id)
+          stale.update!(connected: true)
+          ChargePoint.where(id: @charge_point.id).update_all(connected: false)
+
+          Connection.new(charge_point: stale, driver: FakeDriver.new, io: nil, pubsub: @pubsub).open
+
+          assert @charge_point.reload.connected?
+        end
       end
     end
   end
