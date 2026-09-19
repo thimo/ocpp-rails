@@ -184,6 +184,30 @@ module Ocpp
           assert_not second.closed?
           assert_equal second, Registry[@charge_point.identifier]
         end
+
+        # Each handshake loads its own ChargePoint, so the superseding
+        # connection cannot see, and cannot undo, a `connected: false` the
+        # displaced one wrote through its instance: Active Record skips an
+        # attribute that did not change on the instance being saved. The
+        # station then reads offline for the whole life of the new socket while
+        # it is answering on it.
+        test "a station superseding its own socket stays connected in the row" do
+          build.open
+          reconnecting = ChargePoint.find(@charge_point.id)
+
+          Connection.new(charge_point: reconnecting, driver: FakeDriver.new, io: nil, pubsub: @pubsub).open
+
+          assert @charge_point.reload.connected?
+        end
+
+        test "superseding a socket logs no disconnect state change" do
+          build.open
+          reconnecting = ChargePoint.find(@charge_point.id)
+
+          assert_no_difference -> { StateChange.where(change_type: "connection", new_value: "false").count } do
+            Connection.new(charge_point: reconnecting, driver: FakeDriver.new, io: nil, pubsub: @pubsub).open
+          end
+        end
       end
     end
   end
