@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - **A station that reconnects before its old socket is torn down no longer reads offline while it is live.** On the raw transport, `Connection#open` displaces the previous connection for that station, and closing it marked the station disconnected — while the station was answering on the new socket. Because each handshake loads its own `ChargePoint`, and Active Record writes only the attributes that changed on the instance being saved, the following `mark_connected` (whose instance still read `true`) wrote nothing, so `ocpp_charge_points.connected` stayed `false` for the whole life of the new socket and `Heartbeat`, running on that same instance, never repaired it. A superseded teardown now skips the disconnect write, and both `RawSocket::Connection#mark_connected` and `ChargePoint#heartbeat!` reload before writing, so the flag is also repaired when another process tears down its own stale socket for the same station.
 
+### Security
+- **`authorizationKey` is no longer stored in the clear in `ocpp_messages`.** Every message is persisted with its payload, so an app using Security Profile 1 wrote the station's own credential to the database twice per rollout: once as the outbound `ChangeConfiguration` value, and again when a `GetConfiguration` reply echoed it back inside `configurationKey`. `Message` now redacts the value of any key in the new `config.redacted_configuration_keys` (default `["authorizationKey"]`, matched case-insensitively) in a `before_save`, so the plaintext never reaches the database in either direction. Set it to `[]` to keep the previous behaviour.
+
 ## [0.4.0] - 2026-07-15
 
 ### Added
