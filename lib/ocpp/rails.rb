@@ -48,7 +48,9 @@ module Ocpp
                     :session_hooks, :implausible_energy_jump_wh, :authentication_mode,
                     :max_messages_per_minute, :max_connection_attempts_per_minute,
                     :transport, :raw_socket_path, :websocket_subprotocols, :raw_socket_max_frame_bytes,
-                    :redacted_configuration_keys
+                    :redacted_configuration_keys,
+                    :raw_socket_keepalive_idle, :raw_socket_keepalive_interval,
+                    :raw_socket_keepalive_probes
 
       def initialize
         @ocpp_version = "1.6"
@@ -98,6 +100,18 @@ module Ocpp
         # add vendor keys that hold secrets. Matched case-insensitively, as
         # OCPP 1.6 treats configuration keys. [] stores every payload verbatim.
         @redacted_configuration_keys = [ "authorizationKey" ]
+        # TCP keepalive timers for a raw station socket: seconds of silence
+        # before the first probe, seconds between probes, and probes before
+        # the socket is dropped. SO_KEEPALIVE is always set; these decide when
+        # it fires, instead of leaving the OS defaults -- 7200 seconds idle on
+        # Linux, so two hours before a vanished station is noticed at all.
+        # 120/30/3 sees a dead peer off in about three and a half minutes
+        # while staying cheap on a metered mobile link: one probe per idle
+        # period, none at all while a station is talking. nil leaves a timer
+        # to the OS.
+        @raw_socket_keepalive_idle = 120
+        @raw_socket_keepalive_interval = 30
+        @raw_socket_keepalive_probes = 3
       end
 
       def register_state_change_hook(hook)
